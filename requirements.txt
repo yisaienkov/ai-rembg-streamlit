@@ -1,0 +1,7 @@
+requests
+opencv-python
+numpy
+pillow
+streamlit
+rembg
+streamlit-image-comparison
