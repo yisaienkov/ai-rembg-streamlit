@@ -1,3 +1,7 @@
+import io
+import math
+import zipfile
+
 import cv2
 import numpy as np
 import streamlit as st
@@ -18,24 +22,59 @@ def bytes_to_image(file: bytes) -> np.array:
 
 def vis_image(image: np.array, col: DeltaGenerator) -> None:
     with col:
-        st.image(image, width=350)
+        st.image(image)
+
+
+def vis_image_comparison(first_file, session):
+    input_image = bytes_to_image(first_file)
+    output_image_bgr = remove(
+        cv2.cvtColor(input_image, cv2.COLOR_RGB2BGR),
+        session=session, 
+    )
+    output_image_rgb = cv2.cvtColor(
+        output_image_bgr,
+        cv2.COLOR_BGR2RGB,
+    )
+    
+    image_comparison(
+        img1=input_image,
+        img2=output_image_rgb,
+        in_memory=True,
+        show_labels=False,
+    )
+
+
+def vis_grid(uploaded_files, session, n_cols=4):
+    memory_file = io.BytesIO()
+    rows = [st.columns(n_cols) for _ in range(math.ceil(len(uploaded_files) / n_cols))]
+    
+    with zipfile.ZipFile(memory_file, mode='w') as zip_file:
+        for i, uploaded_file in enumerate(uploaded_files):
+            input_image = bytes_to_image(uploaded_file)
+            output_image_bgr = remove(
+                cv2.cvtColor(input_image, cv2.COLOR_RGB2BGR),
+                session=session, 
+            )
+            output_image_rgb = cv2.cvtColor(
+                output_image_bgr,
+                cv2.COLOR_BGR2RGB,
+            )
+            vis_image(output_image_rgb, rows[i // n_cols][i % n_cols])
+
+            _, buffer = cv2.imencode('.png', output_image_bgr)
+            zip_file.writestr(f'image_{i}.png', buffer)
+        
+    memory_file.seek(0)
+
+    st.download_button("Download Images", memory_file, file_name="images.zip")
 
 
 if __name__ == "__main__":
     session = new_session("u2net_human_seg")
-    uploaded_file = st.file_uploader("", type="jpg")
+    uploaded_files = st.file_uploader("", type="jpg", accept_multiple_files=True)
 
-    if uploaded_file is not None:
-        input_image = bytes_to_image(uploaded_file)
-        output_image = cv2.cvtColor(
-            remove(
-                cv2.cvtColor(input_image, cv2.COLOR_RGB2BGR),
-                session=session, 
-            ),
-            cv2.COLOR_BGR2RGB,
-        )
-        
-        image_comparison(
-            img1=input_image,
-            img2=output_image,
-        )
+    if uploaded_files:
+        vis_image_comparison(uploaded_files[0], session)
+
+        vis_grid(uploaded_files, session)
+
